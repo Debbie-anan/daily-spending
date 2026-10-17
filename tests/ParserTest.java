@@ -45,6 +45,11 @@ public class ParserTest {
         if(PaymentParser.paymentTitle("com.eg.android.AlipayGphone","联系人"))throw new AssertionError();
         if(PaymentParser.manualExpense("8.88")!=888 || PaymentParser.manualExpense("0.01")!=1)throw new AssertionError();
         for(String invalid:new String[]{"0","-1","1.234","1e2","","99999999.99"})if(PaymentParser.manualExpense(invalid)!=PaymentParser.UNKNOWN)throw new AssertionError(invalid);
+        String ali="com.eg.android.AlipayGphone",wx="com.tencent.mm";
+        if(PaymentParser.centsForSource(ali,"转账成功 20元")!=2000)throw new AssertionError();
+        if(PaymentParser.centsForSource(ali,"成功转出 0.01元")!=1)throw new AssertionError();
+        for(String text:new String[]{"收到转账20元","转账已到账20元","转账成功 对方向你转账20元","转账处理中20元","红包发送成功20元","转账成功 原金额20元 实付18元"})if(PaymentParser.centsForSource(ali,text)!=PaymentParser.UNKNOWN)throw new AssertionError(text);
+        if(PaymentParser.centsForSource(wx,"转账成功20元")!=PaymentParser.UNKNOWN)throw new AssertionError();
         long netExpense=3000+PaymentParser.cents("退款成功 35元");
         if(netExpense!=-500)throw new AssertionError("refund net should be +5");
         if(PaymentParser.relevant("你好"))throw new AssertionError();

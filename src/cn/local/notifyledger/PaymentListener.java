@@ -24,9 +24,9 @@ public class PaymentListener extends NotificationListenerService {
         LinkedHashSet<String> parts=new LinkedHashSet<>();
         for(String key:new String[]{Notification.EXTRA_TITLE,Notification.EXTRA_TEXT,Notification.EXTRA_BIG_TEXT,Notification.EXTRA_SUB_TEXT}) {CharSequence s=e.getCharSequence(key);if(s!=null&&!s.toString().trim().isEmpty())parts.add(s.toString());}
         CharSequence[] lines=e.getCharSequenceArray(Notification.EXTRA_TEXT_LINES);if(lines!=null)for(CharSequence line:lines)if(line!=null)parts.add(line.toString());
-        String text=String.join("\n",parts);if(!PaymentParser.relevant(text))return;
-        long amount=PaymentParser.cents(text);if(amount==PaymentParser.UNKNOWN)return;
-        String summary=(amount<0?"退款成功":"付款成功")+" ¥"+java.math.BigDecimal.valueOf(amount).abs().movePointLeft(2).toPlainString();
+        String text=String.join("\n",parts);if(!PaymentParser.relevant(text)&&!(pkg.equals("com.eg.android.AlipayGphone")&&text.matches("(?s).*(转账|转出).*")))return;
+        long amount=PaymentParser.centsForSource(pkg,text);if(amount==PaymentParser.UNKNOWN)return;
+        String summary=(amount<0?"退款成功":text.matches("(?s).*(转账|转出).*")?"转账成功":"付款成功")+" ¥"+java.math.BigDecimal.valueOf(amount).abs().movePointLeft(2).toPlainString();
         // Updates of a notification with identical content and original time are one observation.
         String raw=sbn.getKey()+"|"+n.when+"|"+amount;
         String fingerprint;

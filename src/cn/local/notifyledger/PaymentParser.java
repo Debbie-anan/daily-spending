@@ -9,11 +9,19 @@ public final class PaymentParser {
     public static boolean relevant(String s) {
         return !Pattern.compile("转账|转出|红包").matcher(s).find() && Pattern.compile("支付|付款|消费|扣款|退款").matcher(s).find();
     }
+    public static long centsForSource(String pkg,String text) {
+        if(pkg.equals("com.eg.android.AlipayGphone") && Pattern.compile("转账|转出").matcher(text).find()) {
+            if(Pattern.compile("红包|收款|收到|到账|收入|向你|给你|退回|退款|收取|失败|等待|待确认|处理中|待收款").matcher(text).find())return UNKNOWN;
+            if(!Pattern.compile("转账成功|转出成功|成功转账|成功转出").matcher(text).find())return UNKNOWN;
+            return cents(text.replaceAll("转账成功|转出成功|成功转账|成功转出","付款成功").replaceAll("转账|转出",""));
+        }
+        return cents(text);
+    }
     public static boolean paymentTitle(String pkg,String title) {
         if(title==null)return false;
         title=title.trim();
         if(pkg.equals("com.tencent.mm"))return title.matches("微信支付|微信支付凭证|支付凭证");
-        if(pkg.equals("com.eg.android.AlipayGphone"))return title.matches("支付宝|支付宝支付助手|支付助手|付款成功|支付成功|退款成功|交易提醒|消费提醒");
+        if(pkg.equals("com.eg.android.AlipayGphone"))return title.matches("支付宝|支付宝支付助手|支付助手|付款成功|支付成功|退款成功|交易提醒|消费提醒|转账成功|转出成功");
         return false;
     }
     public static long manualExpense(String input) {
