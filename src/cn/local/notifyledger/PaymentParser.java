@@ -7,14 +7,26 @@ import java.util.*;
 public final class PaymentParser {
     public static final long UNKNOWN = Long.MIN_VALUE;
     public static boolean relevant(String s) {
-        return Pattern.compile("支付|付款|消费|扣款|支出|收款|到账|退款|转账|红包|交易").matcher(s).find();
+        return !Pattern.compile("转账|转出|红包").matcher(s).find() && Pattern.compile("支付|付款|消费|扣款|退款").matcher(s).find();
+    }
+    public static boolean paymentTitle(String pkg,String title) {
+        if(title==null)return false;
+        title=title.trim();
+        if(pkg.equals("com.tencent.mm"))return title.matches("微信支付|微信支付凭证|支付凭证");
+        if(pkg.equals("com.eg.android.AlipayGphone"))return title.matches("支付宝|支付宝支付助手|支付助手|付款成功|支付成功|退款成功|交易提醒|消费提醒");
+        return false;
+    }
+    public static long manualExpense(String input) {
+        if(input==null || !input.matches("[0-9]{1,8}(\\.[0-9]{1,2})?"))return UNKNOWN;
+        try {long value=new BigDecimal(input).movePointRight(2).longValueExact();return value>0 && value<=1000000000L?value:UNKNOWN;}catch(Exception ex){return UNKNOWN;}
     }
     // Conservative: never infer an expense from an amount alone.
     public static long cents(String s) {
+        if (Pattern.compile("转账|转出|红包").matcher(s).find()) return UNKNOWN;
         if (Pattern.compile("失败|待支付|待付款|等待付款|未支付|未付款|取消|关闭|验证码|优惠|立减|余额|额度|还款|账单日|应还|退款申请|申请退款|退款处理中|退款中|待退款|预计到账").matcher(s).find()) return UNKNOWN;
         boolean refund=Pattern.compile("退款成功|退款到账|退款已到账|退款已退回|已退款|成功退款").matcher(s).find();
         if (!refund && Pattern.compile("收款|收钱|到账|收入|收到转账|向你转账|给你转账|收到红包|领取红包|领取了红包|红包领取|收取|退回|退款").matcher(s).find()) return UNKNOWN;
-        boolean outgoing=Pattern.compile("支付成功|付款成功|扣款成功|消费成功|成功支付|成功付款|成功扣款|支出|转账成功|转出成功|已转账|红包发送成功|红包已发出|成功发出红包|成功发送红包|发送红包成功|发出红包成功|你发出了红包|你发送了红包").matcher(s).find();
+        boolean outgoing=Pattern.compile("支付成功|付款成功|扣款成功|消费成功|成功支付|成功付款|成功扣款|支出").matcher(s).find();
         if (!refund && !outgoing) return UNKNOWN;
         Pattern p=Pattern.compile("[¥￥]\\s*([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)(?![0-9.])|(?<![0-9.])([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*元");
         Matcher m=p.matcher(s); Set<Long> values=new HashSet<>();

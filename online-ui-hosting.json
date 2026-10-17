@@ -3,8 +3,8 @@
   "url": "https://daily-spending-ui.laicarrie06.chatgpt.site",
   "endpoint": "https://daily-spending-ui.laicarrie06.chatgpt.site/interface.json",
   "audience": "public_static_interface_only",
-  "interfaceVersion": 3,
-  "minShell": 6,
+  "interfaceVersion": 5,
+  "minShell": 7,
   "hostingManifest": "work/ui-hosting/.openai/hosting.json",
   "signingKey": "Local only; never uploaded"
 }

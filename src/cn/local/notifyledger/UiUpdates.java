@@ -16,7 +16,7 @@ import java.util.*;
 
 /** Download signed interface files, then serve locally; no ledger data is sent. */
 public final class UiUpdates {
-    public static final long BUNDLED_VERSION=1;
+    public static final long BUNDLED_VERSION=4;
     public static final String DEFAULT_ENDPOINT="https://daily-spending-ui.laicarrie06.chatgpt.site/interface.json";
     private final Activity activity;
     private final Runnable reload;

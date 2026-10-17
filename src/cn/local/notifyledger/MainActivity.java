@@ -44,8 +44,9 @@ public class MainActivity extends Activity {
             }catch(Exception ex){return "{\"error\":\"无法读取本机账本，请重新打开应用\"}";}
         }
         @JavascriptInterface public void action(String name){runOnUiThread(()->{
-            if(name.equals("permission"))new AlertDialog.Builder(MainActivity.this).setTitle("读取付款通知").setMessage("系统授权覆盖所有通知。本应用只处理微信、支付宝中含支付相关词的通知，可能含商户名或聊天文字。账单仅保存在手机，不上传。可随时在系统设置撤销授权。").setNegativeButton("暂不",null).setPositiveButton("前往授权",(d,w)->open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))).show();
+            if(name.equals("permission"))new AlertDialog.Builder(MainActivity.this).setTitle("读取付款通知").setMessage("系统授权覆盖所有通知。本应用只识别标题符合微信支付或支付宝支付提示、金额明确的付款及退款通知。转账和红包不自动记入，新记录仅保存金额、渠道、时间和摘要。账单仅保存在手机，不上传。可随时在系统设置撤销授权。").setNegativeButton("暂不",null).setPositiveButton("前往授权",(d,w)->open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))).show();
             else if(name.equals("settings"))open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));
+            else if(name.equals("manual"))manualEntry();
             else if(name.equals("update"))ui.check(true);
             else if(name.equals("updateSettings"))ui.configure();
             else if(name.equals("install"))updater.install();
@@ -53,6 +54,17 @@ public class MainActivity extends Activity {
             else if(name.equals("clear"))new AlertDialog.Builder(MainActivity.this).setTitle("清空本机记录？").setMessage("所有已识别、待识别和已排除记录将永久删除，无法恢复。").setNegativeButton("取消",null).setPositiveButton("清空",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.getWritableDatabase().delete("events",null,null);}refresh();}).show();
         });}
         @JavascriptInterface public void ignore(long id){runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("排除此通知？").setMessage("此通知将不再计入净额，原文保留供核对。").setNegativeButton("取消",null).setPositiveButton("排除",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.ignore(id);}refresh();}).show());}
+    }
+    private void manualEntry(){
+        android.widget.LinearLayout form=new android.widget.LinearLayout(this);form.setOrientation(1);int padding=(int)(20*getResources().getDisplayMetrics().density);form.setPadding(padding,0,padding,0);
+        android.widget.TextView label=new android.widget.TextView(this);label.setText("金额（元）");form.addView(label);
+        android.widget.EditText amount=new android.widget.EditText(this);amount.setHint("例如 8.88");amount.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);form.addView(amount);
+        android.widget.Spinner source=new android.widget.Spinner(this);source.setAdapter(new android.widget.ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"微信","支付宝"}));form.addView(source);
+        android.widget.Spinner category=new android.widget.Spinner(this);category.setAdapter(new android.widget.ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"转账","红包","其他支出"}));form.addView(category);
+        java.util.Calendar when=java.util.Calendar.getInstance();android.widget.Button date=new android.widget.Button(this);date.setText(new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.CHINA).format(when.getTime()));form.addView(date);
+        date.setOnClickListener(v->{DatePickerDialog picker=new DatePickerDialog(this,(view,y,m,d)->{when.set(y,m,d);date.setText(new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.CHINA).format(when.getTime()));},when.get(java.util.Calendar.YEAR),when.get(java.util.Calendar.MONTH),when.get(java.util.Calendar.DAY_OF_MONTH));picker.getDatePicker().setMaxDate(System.currentTimeMillis());picker.show();});
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("手动记一笔支出").setView(form).setNegativeButton("取消",null).setPositiveButton("保存",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{long cents=PaymentParser.manualExpense(amount.getText().toString().trim());if(cents==PaymentParser.UNKNOWN){amount.setError("请输入大于0的金额，最多两位小数");return;}String summary="手动记账："+category.getSelectedItem()+" ¥"+java.math.BigDecimal.valueOf(cents).movePointLeft(2).toPlainString();try(LedgerDb db=new LedgerDb(this)){db.insert("manual-"+java.util.UUID.randomUUID().toString(),source.getSelectedItem().toString(),summary,when.getTimeInMillis(),cents);}dialog.dismiss();refresh();Toast.makeText(this,"已记入支出",Toast.LENGTH_SHORT).show();}));dialog.show();
     }
     protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==41&&result==RESULT_OK&&data!=null&&data.getData()!=null){try(LedgerDb db=new LedgerDb(this);java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new java.io.IOException();out.write(db.export().getBytes(StandardCharsets.UTF_8));Toast.makeText(this,"已导出",Toast.LENGTH_SHORT).show();}catch(Exception ex){Toast.makeText(this,"导出失败，请重试",Toast.LENGTH_LONG).show();}}}
     public void onBackPressed(){if(web!=null&&ready)web.evaluateJavascript("window.handleBack && window.handleBack()",value->{if("false".equals(value))finish();});else super.onBackPressed();}
