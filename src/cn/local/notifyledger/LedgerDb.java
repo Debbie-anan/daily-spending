@@ -22,9 +22,9 @@ public final class LedgerDb extends SQLiteOpenHelper {
         }}}
         if(oldV<4)db.execSQL("ALTER TABLE events ADD COLUMN note TEXT NOT NULL DEFAULT ''");
     }
-    public void insert(String fingerprint,String source,String content,long posted,long cents) {
+    public boolean insert(String fingerprint,String source,String content,long posted,long cents) {
         ContentValues v=new ContentValues(); v.put("fingerprint",fingerprint);v.put("source",source);v.put("content",content);v.put("posted",cents!=PaymentParser.UNKNOWN && cents<0?System.currentTimeMillis():posted);v.put("received",System.currentTimeMillis());v.put("cents",cents);v.put("state",cents!=PaymentParser.UNKNOWN?"auto":"pending");
-        getWritableDatabase().insertWithOnConflict("events",null,v,SQLiteDatabase.CONFLICT_IGNORE);
+        return getWritableDatabase().insertWithOnConflict("events",null,v,SQLiteDatabase.CONFLICT_IGNORE)!=-1;
     }
     public void ignore(long id) {ContentValues v=new ContentValues();v.put("state","ignored");getWritableDatabase().update("events",v,"_id=?",new String[]{""+id});}
     public void insertManual(String source,String category,String note,long posted,long cents) {

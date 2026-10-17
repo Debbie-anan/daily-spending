@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
         web.loadUrl(UI_URL);
     }
     public void onResume(){super.onResume();refresh();}
-    private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.4";}}
+    private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.5";}}
     private void refresh(){if(ready&&web!=null)web.evaluateJavascript("window.refreshLedger && window.refreshLedger()",null);}
     private void open(Intent i){try{startActivity(i);}catch(Exception ex){Toast.makeText(this,"此系统未提供入口，请在手机设置中搜索对应选项",Toast.LENGTH_LONG).show();}}
     public final class Bridge {
@@ -59,6 +59,12 @@ public class MainActivity extends Activity {
             if(name.equals("permission"))new AlertDialog.Builder(MainActivity.this).setTitle("读取付款通知").setMessage("系统授权覆盖所有通知。本应用只识别标题符合微信支付或支付宝支付提示、金额明确的付款及退款通知。微信转账和红包不自动记入；支付宝金额明确的成功转出可自动记入，新记录仅保存金额、渠道、时间和摘要。账单仅保存在手机，不上传。可随时在系统设置撤销授权。").setNegativeButton("暂不",null).setPositiveButton("前往授权",(d,w)->open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))).show();
             else if(name.equals("settings"))open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));
             else if(name.equals("manual"))manualEntry();
+            else if(name.equals("refresh")){
+                String message;
+                try{if(!granted())message="本地账本已刷新；尚未授权通知读取";else{int added=PaymentListener.refreshActive(MainActivity.this);message=added<0?"账本已刷新；通知监听正在重新连接，请稍后再试":added>0?"已刷新，补记"+added+"条通知":"已刷新，暂无新的可识别通知";}}
+                catch(Exception ex){message="账本已刷新，暂时无法重新读取通知";}
+                refresh();if(web!=null&&ready)web.evaluateJavascript("window.finishPullRefresh && window.finishPullRefresh("+JSONObject.quote(message)+")",null);
+            }
             else if(name.equals("export")){Toast.makeText(MainActivity.this,"导出文件含账本数据；保存到云盘可能被同步，请选择可信位置",Toast.LENGTH_LONG).show();Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_TITLE,"付款通知记录.json");try{startActivityForResult(i,41);}catch(Exception e){Toast.makeText(MainActivity.this,"找不到文件保存程序",Toast.LENGTH_LONG).show();}}
             else if(name.equals("clear"))new AlertDialog.Builder(MainActivity.this).setTitle("清空本机记录？").setMessage("所有已识别、待识别和已排除记录将永久删除，无法恢复。").setNegativeButton("取消",null).setPositiveButton("清空",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.getWritableDatabase().delete("events",null,null);}refresh();}).show();
         });}

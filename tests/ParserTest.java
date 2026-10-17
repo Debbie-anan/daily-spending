@@ -50,6 +50,12 @@ public class ParserTest {
         if(PaymentParser.centsForSource(ali,"成功转出 0.01元")!=1)throw new AssertionError();
         for(String text:new String[]{"收到转账20元","转账已到账20元","转账成功 对方向你转账20元","转账处理中20元","红包发送成功20元","转账成功 原金额20元 实付18元"})if(PaymentParser.centsForSource(ali,text)!=PaymentParser.UNKNOWN)throw new AssertionError(text);
         if(PaymentParser.centsForSource(wx,"转账成功20元")!=PaymentParser.UNKNOWN)throw new AssertionError();
+        if(!PaymentParser.paymentTitle(ali,"退款提醒"))throw new AssertionError();
+        if(PaymentParser.centsForSource(ali,"交易提醒\n你有一笔15.90元的支出，点此查看详情。")!=1590)throw new AssertionError("real expense");
+        if(PaymentParser.centsForSource(ali,"退款提醒\n你收到一笔13.55元退款，点此查看账单详情！")!=-1355)throw new AssertionError("real refund");
+        if(PaymentParser.centsForSource(ali,"你有5克能量刚成熟 点击收取")!=PaymentParser.UNKNOWN)throw new AssertionError("marketing");
+        if(PaymentParser.centsForSource(ali,"交易提醒 本月支出100元")!=PaymentParser.UNKNOWN)throw new AssertionError("monthly total");
+        if(PaymentParser.centsForSource(wx,"你有一笔15.90元的支出")!=PaymentParser.UNKNOWN)throw new AssertionError("source scope");
         long netExpense=3000+PaymentParser.cents("退款成功 35元");
         if(netExpense!=-500)throw new AssertionError("refund net should be +5");
         if(PaymentParser.relevant("你好"))throw new AssertionError();
