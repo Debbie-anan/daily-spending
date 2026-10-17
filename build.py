@@ -25,7 +25,7 @@ run(jdk/'bin/java.exe','-cp',tools/'lib/d8.jar','com.android.tools.r8.D8','--lib
 unsigned=work/'unsigned.apk'
 resources=work/'resources.zip'
 run(tools/'aapt2.exe','compile','--dir',src/'res','-o',resources)
-run(tools/'aapt2.exe','link','-I',platform/'android.jar','--manifest',src/'AndroidManifest.xml','-o',unsigned,resources)
+run(tools/'aapt2.exe','link','-I',platform/'android.jar','--manifest',src/'AndroidManifest.xml','-o',unsigned,'-A',src/'assets',resources)
 with zipfile.ZipFile(unsigned,'a') as z:z.write(work/'classes.dex','classes.dex')
 aligned=work/'aligned.apk';run(tools/'zipalign.exe','-f','4',unsigned,aligned)
 if not key.exists():
