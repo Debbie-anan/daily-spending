@@ -9,3 +9,6 @@ toolchain/
 __pycache__/
 .env
 local.properties
+
+*.pem
+*.key

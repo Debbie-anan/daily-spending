@@ -44,3 +44,11 @@ python publish.py --apk ./build/app-release.apk --notes-file ./release-notes.md
 脚本从 Manifest 读取版本、计算 SHA-256，先创建草稿并上传两个附件，再正式发布，避免更新元数据指向未上传的安装包。签名一致性由构建者负责，App 安装前还会核对。
 
 详见 [使用说明](使用说明.md)。
+
+## 0.6 安卓壳 + 在线界面（托管待配置）
+
+安卓壳继续管理通知、账本和权限，启动时检查已配置的HTTPS界面清单，校验RSA签名与SHA-256后保存至应用私有目录。界面始终从本地读取；网络不可用时保留内置或上次已验证界面。网页网络请求被禁止，消费记录不会上传。界面改动可在线发布，通知识别或原生权限变动仍需更新APK。
+
+目前未绑定正式托管地址；不能声称在线更新已部署完成。通知页可设置HTTPS的interface.json地址。源码仓库保持私有，托管资源的访问方式待用户确定。
+
+维护者发布界面：`node sign-ui.cjs PRIVATE_KEY_PEM OUTPUT_DIRECTORY VERSION`。版本必须递增，私钥位于本机工作目录，不在仓库、APK或公开资源中。APK仅含验证公钥。只上传输出目录中的interface.json和ui-VERSION.html，且使用不重定向的HTTPS静态地址。
