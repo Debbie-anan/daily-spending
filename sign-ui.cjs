@@ -9,6 +9,6 @@ const sha256=crypto.createHash('sha256').update(html).digest('hex');
 const minShell=6;
 const signature=crypto.sign('RSA-SHA256',Buffer.from(`${version}\n${minShell}\n${sha256}`),fs.readFileSync(keyFile)).toString('base64');
 fs.mkdirSync(outDir,{recursive:true});
-fs.writeFileSync(path.join(outDir,`ui-${version}.html`),html);
-fs.writeFileSync(path.join(outDir,'interface.json'),JSON.stringify({version,minShell,sha256,signature,html:`ui-${version}.html`},null,2));
+fs.writeFileSync(path.join(outDir,`ui-${version}.txt`),html);
+fs.writeFileSync(path.join(outDir,'interface.json'),JSON.stringify({version,minShell,sha256,signature,html:`ui-${version}.txt`},null,2));
 console.log(`Signed interface v${version}; private key not copied`);

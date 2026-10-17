@@ -45,10 +45,12 @@ python publish.py --apk ./build/app-release.apk --notes-file ./release-notes.md
 
 详见 [使用说明](使用说明.md)。
 
-## 0.6 安卓壳 + 在线界面（托管待配置）
+## 0.6 安卓壳 + 在线界面
 
 安卓壳继续管理通知、账本和权限，启动时检查已配置的HTTPS界面清单，校验RSA签名与SHA-256后保存至应用私有目录。界面始终从本地读取；网络不可用时保留内置或上次已验证界面。网页网络请求被禁止，消费记录不会上传。界面改动可在线发布，通知识别或原生权限变动仍需更新APK。
 
-目前未绑定正式托管地址；不能声称在线更新已部署完成。通知页可设置HTTPS的interface.json地址。源码仓库保持私有，托管资源的访问方式待用户确定。
+已部署公开静态界面资源：https://daily-spending-ui.laicarrie06.chatgpt.site 。安卓壳预置 https://daily-spending-ui.laicarrie06.chatgpt.site/interface.json ，不必手动设置。源码仓库保持私有。首次从0.5及以前需要覆盖安装0.6一次；后续界面更新只需重新打开。国内手机直连效果仍需实测。
 
-维护者发布界面：`node sign-ui.cjs PRIVATE_KEY_PEM OUTPUT_DIRECTORY VERSION`。版本必须递增，私钥位于本机工作目录，不在仓库、APK或公开资源中。APK仅含验证公钥。只上传输出目录中的interface.json和ui-VERSION.html，且使用不重定向的HTTPS静态地址。
+维护者发布界面：`node sign-ui.cjs PRIVATE_KEY_PEM OUTPUT_DIRECTORY VERSION`。版本必须递增，私钥位于本机工作目录，不在仓库、APK或公开资源中。APK仅含验证公钥。只上传输出目录中的interface.json和ui-VERSION.txt，且使用不重定向的HTTPS静态地址。使用 .txt 传输界面源文件以避免托管平台对HTML自动注入而破坏签名；安卓验证后按HTML在本地展示。
+
+托管由Sites管理，配置见online-ui-hosting.json。修改界面后签名生成递增版本，更新同一Sites源仓库并按Sites工作流部署；仅向GitHub推送源代码不会自动发布网页。已验证公开端点和线上文件签名，未在小米13做完整端到端测试。

@@ -17,7 +17,7 @@ import java.util.*;
 /** Download signed interface files, then serve locally; no ledger data is sent. */
 public final class UiUpdates {
     public static final long BUNDLED_VERSION=1;
-    public static final String DEFAULT_ENDPOINT="";
+    public static final String DEFAULT_ENDPOINT="https://daily-spending-ui.laicarrie06.chatgpt.site/interface.json";
     private final Activity activity;
     private final Runnable reload;
     private final android.content.SharedPreferences prefs;
@@ -56,7 +56,7 @@ public final class UiUpdates {
             if(candidate<=version()){activity.runOnUiThread(()->{if(manual)toast("界面已是最新版本");});return;}
             long shell=Build.VERSION.SDK_INT>=28?activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).getLongVersionCode():activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionCode;
             if(m.getLong("minShell")>shell)throw new IOException("此界面需要更新安卓壳，请安装新版 APK");
-            String filename=m.getString("html");if(!filename.matches("ui-[0-9]+\\.html"))throw new IOException("界面文件名无效");
+            String filename=m.getString("html");if(!filename.matches("ui-[0-9]+\\.txt"))throw new IOException("界面文件名无效");
             URL url=new URL(base,filename);if(!url.getHost().equals(base.getHost()))throw new IOException("更新来源不一致");byte[] html=fetch(url,2097152);verify(m,html);
             synchronized(this){if(!endpoint().equals(address))return;File root=new File(activity.getFilesDir(),"interfaces");File dir=new File(root,"v"+candidate+"-"+m.getString("sha256").substring(0,12));if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("无法保存界面");
                 try(FileOutputStream out=new FileOutputStream(new File(dir,"index.html"))){out.write(html);out.getFD().sync();}try(FileOutputStream out=new FileOutputStream(new File(dir,"manifest.json"))){out.write(m.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();}

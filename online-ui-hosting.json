@@ -1,0 +1,10 @@
+{
+  "project_id": "appgprj_6ad319f4c47c8191a034aa77516925a5",
+  "url": "https://daily-spending-ui.laicarrie06.chatgpt.site",
+  "endpoint": "https://daily-spending-ui.laicarrie06.chatgpt.site/interface.json",
+  "audience": "public_static_interface_only",
+  "interfaceVersion": 3,
+  "minShell": 6,
+  "hostingManifest": "work/ui-hosting/.openai/hosting.json",
+  "signingKey": "Local only; never uploaded"
+}
