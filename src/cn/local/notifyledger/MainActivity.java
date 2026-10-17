@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
         super.onCreate(saved);
         getWindow().setStatusBarColor(Color.rgb(255,250,241));getWindow().setNavigationBarColor(Color.rgb(255,250,241));
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
         web=new WebView(this);web.setBackgroundColor(Color.rgb(255,250,241));web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.getSettings().setJavaScriptEnabled(true);web.getSettings().setBlockNetworkLoads(true);web.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);web.getSettings().setSupportMultipleWindows(false);
         web.addJavascriptInterface(new Bridge(),"Ledger");
@@ -28,11 +29,23 @@ public class MainActivity extends Activity {
             public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){if(r.getUrl().toString().equals(UI_URL))try{return new WebResourceResponse("text/html","utf-8",getAssets().open("index.html"));}catch(Exception ex){return new WebResourceResponse("text/plain","utf-8",new java.io.ByteArrayInputStream("界面加载失败，请重新打开应用".getBytes(StandardCharsets.UTF_8)));}return new WebResourceResponse("text/plain","utf-8",new java.io.ByteArrayInputStream(new byte[0]));}
             public void onPageFinished(WebView v,String url){ready=true;refresh();}
         });
-        setContentView(web);web.setOnApplyWindowInsetsListener((v,insets)->{v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
+        android.widget.FrameLayout container=new android.widget.FrameLayout(this);
+        container.setBackgroundColor(Color.rgb(255,250,241));
+        container.addView(web,new android.widget.FrameLayout.LayoutParams(-1,-1));
+        container.setOnApplyWindowInsetsListener((v,insets)->{
+            int left,top,right,bottom;
+            if(Build.VERSION.SDK_INT>=30){android.graphics.Insets safe=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()|WindowInsets.Type.ime());left=safe.left;top=safe.top;right=safe.right;bottom=safe.bottom;}
+            else{left=insets.getSystemWindowInsetLeft();top=insets.getSystemWindowInsetTop();right=insets.getSystemWindowInsetRight();bottom=insets.getSystemWindowInsetBottom();if(Build.VERSION.SDK_INT>=28&&insets.getDisplayCutout()!=null){DisplayCutout cutout=insets.getDisplayCutout();left=Math.max(left,cutout.getSafeInsetLeft());top=Math.max(top,cutout.getSafeInsetTop());right=Math.max(right,cutout.getSafeInsetRight());bottom=Math.max(bottom,cutout.getSafeInsetBottom());}}
+            // Pad the native container so WebView's measured viewport excludes system UI.
+            int breathingRoom=(int)(8*getResources().getDisplayMetrics().density+.5f);
+            v.setPadding(left,top+breathingRoom,right,bottom);
+            return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:insets.consumeSystemWindowInsets();
+        });
+        setContentView(container);container.post(()->container.requestApplyInsets());
         web.loadUrl(UI_URL);
     }
     public void onResume(){super.onResume();refresh();}
-    private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.1";}}
+    private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.2";}}
     private void refresh(){if(ready&&web!=null)web.evaluateJavascript("window.refreshLedger && window.refreshLedger()",null);}
     private void open(Intent i){try{startActivity(i);}catch(Exception ex){Toast.makeText(this,"此系统未提供入口，请在手机设置中搜索对应选项",Toast.LENGTH_LONG).show();}}
     public final class Bridge {
