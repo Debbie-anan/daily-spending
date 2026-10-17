@@ -1,0 +1,11 @@
+*.jks
+*.keystore
+*.apk
+*.idsig
+*.part
+*.zip
+build/
+toolchain/
+__pycache__/
+.env
+local.properties
