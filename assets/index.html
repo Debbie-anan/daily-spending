@@ -20,7 +20,7 @@ const signed=c=>(c>0?'-':c<0?'+':'')+Number(yuan(c));
 const total=a=>a.reduce((s,x)=>s+Number(x.cents),0);
 const dateTime=n=>n?new Date(Number(n)).toLocaleString('zh-CN',{hour12:false}):'尚无记录';
 const native=typeof Ledger!=='undefined';
-let state={events:[],granted:false,seen:0,appVersion:'0.9',uiVersion:9},events=[],page='calendar',filter='全部',range='all',today=key(new Date()),year=new Date().getFullYear(),month=new Date().getMonth(),selected=new Date().getDate(),last='',openedId=null;
+let state={events:[],granted:false,seen:0,appVersion:'0.9.1',uiVersion:9},events=[],page='calendar',filter='全部',range='all',today=key(new Date()),year=new Date().getFullYear(),month=new Date().getMonth(),selected=new Date().getDate(),last='',openedId=null;
 function action(name){if(native)Ledger.action(name);else toast('电脑仅查看界面，此操作需在手机中完成。')}
 function title(x){let c=x.content||'';return Number(x.cents)<0&&x.state==='auto'?'退款':/红包/.test(c)?'发出红包':/转账|转出/.test(c)?'转账支出':x.state==='auto'?'付款':'待识别通知'}
 function header(t,sub){return `<div class="header"><div><small>${sub}</small><h2>${t}</h2></div><button class="round" data-go="diagnostics" aria-label="通知与设置">${icon('bell')}</button></div>`}
