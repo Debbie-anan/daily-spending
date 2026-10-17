@@ -16,6 +16,8 @@ run(jdk/'bin/javac.exe','-encoding','UTF-8','-source','8','-target','8','-classp
 tests=work/'tests';tests.mkdir(exist_ok=True)
 run(jdk/'bin/javac.exe','-encoding','UTF-8','-d',tests,src/'src/cn/local/notifyledger/PaymentParser.java',src/'tests/ParserTest.java')
 run(jdk/'bin/java.exe','-cp',tests,'ParserTest')
+run(jdk/'bin/javac.exe','-encoding','UTF-8','-classpath',tests,'-d',tests,src/'src/cn/local/notifyledger/RecordPrivacy.java',src/'tests/RecordPrivacyTest.java')
+run(jdk/'bin/java.exe','-cp',tests,'RecordPrivacyTest')
 jar=work/'classes.jar'
 with zipfile.ZipFile(jar,'w') as z:
  for f in classes.rglob('*.class'):z.write(f,f.relative_to(classes).as_posix())

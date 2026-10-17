@@ -6,13 +6,18 @@ import android.database.Cursor;
 import org.json.*;
 
 public final class LedgerDb extends SQLiteOpenHelper {
-    public LedgerDb(Context c) {super(c,"ledger.db",null,2);}
+    public LedgerDb(Context c) {super(c,"ledger.db",null,3);}
+    public void onConfigure(SQLiteDatabase db) {try(Cursor c=db.rawQuery("PRAGMA secure_delete=ON",null)){c.moveToFirst();}}
     public void onCreate(SQLiteDatabase db) {db.execSQL("CREATE TABLE events (_id INTEGER PRIMARY KEY, fingerprint TEXT UNIQUE, source TEXT, content TEXT, posted INTEGER, received INTEGER, cents INTEGER, state TEXT)");}
     public void onUpgrade(SQLiteDatabase db,int oldV,int newV) {
         if(oldV<2) {try(Cursor c=db.rawQuery("SELECT _id,content,state,received FROM events",null)) {while(c.moveToNext()) {
             long amount=PaymentParser.cents(c.getString(1));ContentValues v=new ContentValues();v.put("cents",amount);
             if(!c.getString(2).equals("ignored"))v.put("state",amount!=PaymentParser.UNKNOWN?"auto":"pending");
             if(amount!=PaymentParser.UNKNOWN && amount<0)v.put("posted",c.getLong(3));
+            db.update("events",v,"_id=?",new String[]{c.getString(0)});
+        }}}
+        if(oldV<3) {try(Cursor c=db.rawQuery("SELECT _id,content,cents,state FROM events",null)) {while(c.moveToNext()) {
+            ContentValues v=new ContentValues();v.put("content",RecordPrivacy.summary(c.getString(1),c.getLong(2),c.getString(3)));
             db.update("events",v,"_id=?",new String[]{c.getString(0)});
         }}}
     }

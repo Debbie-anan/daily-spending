@@ -30,3 +30,7 @@ python build.py --jdk C:/tools/jdk17 --tools C:/Android/build-tools/35.0.0 --pla
 ```
 
 必须使用原签名密钥才能覆盖安装现有应用。密钥只保存在本机，不提交到GitHub或Release。
+
+## 0.9.3 安全检查与修复
+
+检查及限制见 [SECURITY_REVIEW.md](SECURITY_REVIEW.md)。v2账本升级至v3时将旧通知全文摘要化，保留金额、时间和状态；新增导出隐私提示、显式WebView跨源访问限制。不是完整安全认证，通知来源误识别、本机访问及主动导出风险仍在。

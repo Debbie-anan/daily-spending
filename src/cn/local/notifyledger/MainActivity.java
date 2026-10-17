@@ -22,7 +22,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
         web=new WebView(this);web.setBackgroundColor(Color.rgb(255,250,241));web.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        web.getSettings().setJavaScriptEnabled(true);web.getSettings().setBlockNetworkLoads(true);web.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);web.getSettings().setSupportMultipleWindows(false);
+        web.getSettings().setJavaScriptEnabled(true);web.getSettings().setBlockNetworkLoads(true);web.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.getSettings().setAllowFileAccessFromFileURLs(false);web.getSettings().setAllowUniversalAccessFromFileURLs(false);web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);web.getSettings().setSupportMultipleWindows(false);
         web.addJavascriptInterface(new Bridge(),"Ledger");
         web.setWebViewClient(new WebViewClient(){
             public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return true;}
@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
         web.loadUrl(UI_URL);
     }
     public void onResume(){super.onResume();refresh();}
-    private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.2";}}
+    private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.3";}}
     private void refresh(){if(ready&&web!=null)web.evaluateJavascript("window.refreshLedger && window.refreshLedger()",null);}
     private void open(Intent i){try{startActivity(i);}catch(Exception ex){Toast.makeText(this,"此系统未提供入口，请在手机设置中搜索对应选项",Toast.LENGTH_LONG).show();}}
     public final class Bridge {
@@ -59,10 +59,10 @@ public class MainActivity extends Activity {
             if(name.equals("permission"))new AlertDialog.Builder(MainActivity.this).setTitle("读取付款通知").setMessage("系统授权覆盖所有通知。本应用只识别标题符合微信支付或支付宝支付提示、金额明确的付款及退款通知。微信转账和红包不自动记入；支付宝金额明确的成功转出可自动记入，新记录仅保存金额、渠道、时间和摘要。账单仅保存在手机，不上传。可随时在系统设置撤销授权。").setNegativeButton("暂不",null).setPositiveButton("前往授权",(d,w)->open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))).show();
             else if(name.equals("settings"))open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));
             else if(name.equals("manual"))manualEntry();
-            else if(name.equals("export")){Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_TITLE,"付款通知记录.json");try{startActivityForResult(i,41);}catch(Exception e){Toast.makeText(MainActivity.this,"找不到文件保存程序",Toast.LENGTH_LONG).show();}}
+            else if(name.equals("export")){Toast.makeText(MainActivity.this,"导出文件含账本数据；保存到云盘可能被同步，请选择可信位置",Toast.LENGTH_LONG).show();Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_TITLE,"付款通知记录.json");try{startActivityForResult(i,41);}catch(Exception e){Toast.makeText(MainActivity.this,"找不到文件保存程序",Toast.LENGTH_LONG).show();}}
             else if(name.equals("clear"))new AlertDialog.Builder(MainActivity.this).setTitle("清空本机记录？").setMessage("所有已识别、待识别和已排除记录将永久删除，无法恢复。").setNegativeButton("取消",null).setPositiveButton("清空",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.getWritableDatabase().delete("events",null,null);}refresh();}).show();
         });}
-        @JavascriptInterface public void ignore(long id){runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("排除此通知？").setMessage("此通知将不再计入净额，原文保留供核对。").setNegativeButton("取消",null).setPositiveButton("排除",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.ignore(id);}refresh();}).show());}
+        @JavascriptInterface public void ignore(long id){runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("排除此通知？").setMessage("此通知将不再计入净额，摘要保留供核对。").setNegativeButton("取消",null).setPositiveButton("排除",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.ignore(id);}refresh();}).show());}
     }
     private void manualEntry(){
         android.widget.LinearLayout form=new android.widget.LinearLayout(this);form.setOrientation(1);int padding=(int)(20*getResources().getDisplayMetrics().density);form.setPadding(padding,0,padding,0);
