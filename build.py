@@ -1,37 +1,26 @@
-"""Build without Gradle: Python 3, JDK 17, Android build-tools 35, platform 35.
-Usage: python build.py --jdk PATH --tools PATH --platform PATH --work PATH --key PATH --output PATH
-The signing key stays outside the source directory. This is a local test build.
+"""Build bundled offline OCR APK using Gradle 8.9 + JDK17 + Android SDK35.
+Example: python build.py --jdk C:/jdk17 --sdk C:/Android/sdk --key C:/private/localtest.jks --output C:/out/app.apk
+Use the original localtest signing key to preserve upgrade compatibility.
 """
-import argparse, pathlib, subprocess, zipfile, os, tempfile
+import argparse, pathlib, subprocess, os, shutil, tempfile
 p=argparse.ArgumentParser()
-for name in ('jdk','tools','platform','work','key','output'):p.add_argument('--'+name,required=True)
-a=p.parse_args()
-src=pathlib.Path(__file__).resolve().parent
-jdk,tools,platform,work,key,out=[pathlib.Path(getattr(a,n)).resolve() for n in ('jdk','tools','platform','work','key','output')]
-work.mkdir(parents=True,exist_ok=True);out.parent.mkdir(parents=True,exist_ok=True)
-classes=pathlib.Path(tempfile.mkdtemp(prefix='classes-',dir=work))
-env=dict(os.environ,JAVA_HOME=str(jdk));env['PATH']=str(jdk/'bin')+os.pathsep+env.get('PATH','')
+for name in ('jdk','sdk','key','output'): p.add_argument('--'+name,required=True)
+p.add_argument('--gradle',help='Gradle executable; defaults to checked-in wrapper')
+a=p.parse_args();root=pathlib.Path(__file__).resolve().parent
+jdk,sdk,key,out=[pathlib.Path(getattr(a,n)).resolve() for n in ('jdk','sdk','key','output')]
+if not key.is_file():raise SystemExit('Original signing key must already exist; no replacement key will be generated.')
+env=dict(os.environ,JAVA_HOME=str(jdk),ANDROID_HOME=str(sdk),LEDGER_SIGNING_KEY=str(key));env['PATH']=str(jdk/'bin')+os.pathsep+env.get('PATH','')
+exe='.exe' if os.name=='nt' else ''
 def run(*cmd):subprocess.run([str(x) for x in cmd],check=True,env=env)
-run(jdk/'bin/javac.exe','-encoding','UTF-8','-source','8','-target','8','-classpath',platform/'android.jar','-d',classes,*src.glob('src/**/*.java'))
-tests=work/'tests';tests.mkdir(exist_ok=True)
-run(jdk/'bin/javac.exe','-encoding','UTF-8','-d',tests,src/'src/cn/local/notifyledger/PaymentParser.java',src/'tests/ParserTest.java')
-run(jdk/'bin/java.exe','-cp',tests,'ParserTest')
-run(jdk/'bin/javac.exe','-encoding','UTF-8','-classpath',tests,'-d',tests,src/'src/cn/local/notifyledger/RecordPrivacy.java',src/'tests/RecordPrivacyTest.java')
-run(jdk/'bin/java.exe','-cp',tests,'RecordPrivacyTest')
-jar=work/'classes.jar'
-with zipfile.ZipFile(jar,'w') as z:
- for f in classes.rglob('*.class'):z.write(f,f.relative_to(classes).as_posix())
-run(jdk/'bin/java.exe','-cp',tools/'lib/d8.jar','com.android.tools.r8.D8','--lib',platform/'android.jar','--min-api','26','--output',work,jar)
-unsigned=work/'unsigned.apk'
-resources=work/'resources.zip'
-run(tools/'aapt2.exe','compile','--dir',src/'res','-o',resources)
-run(tools/'aapt2.exe','link','-I',platform/'android.jar','--manifest',src/'AndroidManifest.xml','-o',unsigned,'-A',src/'assets',resources)
-with zipfile.ZipFile(unsigned,'a') as z:z.write(work/'classes.dex','classes.dex')
-aligned=work/'aligned.apk';run(tools/'zipalign.exe','-f','4',unsigned,aligned)
-if not key.exists():
- key.parent.mkdir(parents=True,exist_ok=True)
- run(jdk/'bin/keytool.exe','-genkeypair','-keystore',key,'-storepass','android','-keypass','android','-alias','localtest','-dname','CN=Local Notification Ledger Test','-keyalg','RSA','-keysize','2048','-validity','3650')
-run(jdk/'bin/java.exe','-jar',tools/'lib/apksigner.jar','sign','--ks',key,'--ks-key-alias','localtest','--ks-pass','pass:android','--key-pass','pass:android','--out',out,aligned)
-run(jdk/'bin/java.exe','-jar',tools/'lib/apksigner.jar','verify','--verbose',out)
-run(tools/'aapt2.exe','dump','badging',out)
+with tempfile.TemporaryDirectory(prefix='ledger-rule-tests-') as tmp:
+    java=root/'src/cn/local/notifyledger'
+    run(jdk/('bin/javac'+exe),'-encoding','UTF-8','-d',tmp,java/'PaymentParser.java',java/'RecordPrivacy.java',java/'ScreenshotParser.java',root/'tests/ParserTest.java',root/'tests/RecordPrivacyTest.java',root/'tests/ScreenshotParserTest.java')
+    for test in ('ParserTest','RecordPrivacyTest','ScreenshotParserTest'):run(jdk/('bin/java'+exe),'-cp',tmp,test)
+gradle=pathlib.Path(a.gradle).resolve() if a.gradle else root/('gradlew.bat' if os.name=='nt' else 'gradlew')
+run(gradle,'-p',root,'testReleaseUnitTest','assembleRelease','--console=plain')
+artifact=root/'build/outputs/apk/release/NotifyLedger-release.apk'
+out.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(artifact,out)
+tools=sdk/'build-tools/35.0.0'
+run(jdk/('bin/java'+exe),'-jar',tools/'lib/apksigner.jar','verify','--verbose',out)
+run(tools/('aapt2'+exe),'dump','badging',out)
 print('APK:',out)

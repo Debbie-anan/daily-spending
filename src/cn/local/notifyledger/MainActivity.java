@@ -15,6 +15,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private static final String UI_URL="file:///android_asset/index.html";
     private boolean ready=false;
+    private ScreenshotImport screenshotImport;
     private boolean granted(){String value=Settings.Secure.getString(getContentResolver(),"enabled_notification_listeners");ComponentName me=new ComponentName(this,PaymentListener.class);if(value==null)return false;for(String item:value.split(":"))if(me.equals(ComponentName.unflattenFromString(item)))return true;return false;}
     public void onCreate(Bundle saved){
         super.onCreate(saved);
@@ -44,7 +45,7 @@ public class MainActivity extends Activity {
         setContentView(container);container.post(()->container.requestApplyInsets());
         web.loadUrl(UI_URL);
     }
-    public void onResume(){super.onResume();refresh();}
+    public void onResume(){super.onResume();if(granted())PaymentListener.refreshActive(this);refresh();}
     private String version(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "0.9.5";}}
     private void refresh(){if(ready&&web!=null)web.evaluateJavascript("window.refreshLedger && window.refreshLedger()",null);}
     private void open(Intent i){try{startActivity(i);}catch(Exception ex){Toast.makeText(this,"此系统未提供入口，请在手机设置中搜索对应选项",Toast.LENGTH_LONG).show();}}
@@ -52,13 +53,14 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String readState(){
             try(LedgerDb db=new LedgerDb(MainActivity.this)){
                 JSONObject o=new JSONObject(db.export());android.content.SharedPreferences p=getSharedPreferences("status",0);
-                o.put("granted",granted());o.put("lastSeen",p.getLong("lastSeen",0));o.put("connectedAt",p.getLong("connectedAt",0));o.put("seen",p.getLong("seen",0));o.put("appVersion",version());o.put("uiVersion",9);o.put("onlineConfigured",false);o.put("offline",true);return o.toString();
+                o.put("granted",granted());o.put("lastSeen",p.getLong("lastSeen",0));o.put("connectedAt",p.getLong("connectedAt",0));o.put("seen",p.getLong("seen",0));o.put("appVersion",version());o.put("uiVersion",10);o.put("listenerConnected",PaymentListener.isConnected());o.put("lastResult",p.getString("lastResult","尚未检查付款通知"));o.put("lastCheck",p.getLong("lastCheck",0));o.put("onlineConfigured",false);o.put("offline",true);return o.toString();
             }catch(Exception ex){return "{\"error\":\"无法读取本机账本，请重新打开应用\"}";}
         }
         @JavascriptInterface public void action(String name){runOnUiThread(()->{
             if(name.equals("permission"))new AlertDialog.Builder(MainActivity.this).setTitle("读取付款通知").setMessage("系统授权覆盖所有通知。本应用只识别标题符合微信支付或支付宝支付提示、金额明确的付款及退款通知。微信转账和红包不自动记入；支付宝金额明确的成功转出可自动记入，新记录仅保存金额、渠道、时间和摘要。账单仅保存在手机，不上传。可随时在系统设置撤销授权。").setNegativeButton("暂不",null).setPositiveButton("前往授权",(d,w)->open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))).show();
             else if(name.equals("settings"))open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));
             else if(name.equals("manual"))manualEntry();
+            else if(name.equals("screenshot")){Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);picker.setType("image/*");picker.addCategory(Intent.CATEGORY_OPENABLE);picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);try{startActivityForResult(picker,42);}catch(Exception ex){Toast.makeText(MainActivity.this,"找不到系统图片选择程序",Toast.LENGTH_LONG).show();}}
             else if(name.equals("refresh")){
                 String message;
                 try{if(!granted())message="本地账本已刷新；尚未授权通知读取";else{int added=PaymentListener.refreshActive(MainActivity.this);message=added<0?"账本已刷新；通知监听正在重新连接，请稍后再试":added>0?"已刷新，补记"+added+"条通知":"已刷新，暂无新的可识别通知";}}
@@ -68,6 +70,7 @@ public class MainActivity extends Activity {
             else if(name.equals("export")){Toast.makeText(MainActivity.this,"导出文件含账本数据；保存到云盘可能被同步，请选择可信位置",Toast.LENGTH_LONG).show();Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_TITLE,"付款通知记录.json");try{startActivityForResult(i,41);}catch(Exception e){Toast.makeText(MainActivity.this,"找不到文件保存程序",Toast.LENGTH_LONG).show();}}
             else if(name.equals("clear"))new AlertDialog.Builder(MainActivity.this).setTitle("清空本机记录？").setMessage("所有已识别、待识别和已排除记录将永久删除，无法恢复。").setNegativeButton("取消",null).setPositiveButton("清空",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.getWritableDatabase().delete("events",null,null);}refresh();}).show();
         });}
+        @JavascriptInterface public void accept(long id){runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("确认计入这笔通知？").setMessage("可能与截图记账重复。请先核对金额和时间；同一笔交易只保留一条。").setNegativeButton("返回核对",null).setPositiveButton("确认是另一笔，计入",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.accept(id);}refresh();}).show());}
         @JavascriptInterface public void ignore(long id){runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("排除此通知？").setMessage("此通知将不再计入净额，摘要保留供核对。").setNegativeButton("取消",null).setPositiveButton("排除",(d,w)->{try(LedgerDb db=new LedgerDb(MainActivity.this)){db.ignore(id);}refresh();}).show());}
     }
     private void manualEntry(){
@@ -84,7 +87,7 @@ public class MainActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("手动记一笔支出").setView(formScroll).setNegativeButton("取消",null).setPositiveButton("保存",null).create();
         dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{long cents=PaymentParser.manualExpense(amount.getText().toString().trim());if(cents==PaymentParser.UNKNOWN){amount.setError("请输入大于0的金额，最多两位小数");return;}try(LedgerDb db=new LedgerDb(this)){db.insertManual(source.getSelectedItem().toString(),category.getSelectedItem().toString(),note.getText().toString(),when.getTimeInMillis(),cents);}catch(Exception ex){Toast.makeText(this,"保存失败，请重试；已填写内容保留",Toast.LENGTH_LONG).show();return;}dialog.dismiss();refresh();Toast.makeText(this,"已记入支出",Toast.LENGTH_SHORT).show();}));dialog.show();
     }
-    protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==41&&result==RESULT_OK&&data!=null&&data.getData()!=null){try(LedgerDb db=new LedgerDb(this);java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new java.io.IOException();out.write(db.export().getBytes(StandardCharsets.UTF_8));Toast.makeText(this,"已导出",Toast.LENGTH_SHORT).show();}catch(Exception ex){Toast.makeText(this,"导出失败，请重试",Toast.LENGTH_LONG).show();}}}
+    protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==42&&result==RESULT_OK&&data!=null){java.util.List<Uri> images=new java.util.ArrayList<>();if(data.getClipData()!=null){for(int i=0;i<Math.min(10,data.getClipData().getItemCount());i++)images.add(data.getClipData().getItemAt(i).getUri());if(data.getClipData().getItemCount()>10)Toast.makeText(this,"每批最多10张，已选择前10张",Toast.LENGTH_LONG).show();}else if(data.getData()!=null)images.add(data.getData());if(!images.isEmpty()){if(screenshotImport!=null)screenshotImport.close();screenshotImport=new ScreenshotImport(this,()->refresh());screenshotImport.start(images);}return;}if(request==41&&result==RESULT_OK&&data!=null&&data.getData()!=null){try(LedgerDb db=new LedgerDb(this);java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new java.io.IOException();out.write(db.export().getBytes(StandardCharsets.UTF_8));Toast.makeText(this,"已导出",Toast.LENGTH_SHORT).show();}catch(Exception ex){Toast.makeText(this,"导出失败，请重试",Toast.LENGTH_LONG).show();}}}
     public void onBackPressed(){if(web!=null&&ready)web.evaluateJavascript("window.handleBack && window.handleBack()",value->{if("false".equals(value))finish();});else super.onBackPressed();}
-    protected void onDestroy(){ready=false;if(web!=null){web.removeJavascriptInterface("Ledger");web.destroy();web=null;}super.onDestroy();}
+    protected void onDestroy(){ready=false;if(screenshotImport!=null)screenshotImport.close();if(web!=null){web.removeJavascriptInterface("Ledger");web.destroy();web=null;}super.onDestroy();}
 }
