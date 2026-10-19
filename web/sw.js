@@ -1,4 +1,4 @@
-const CACHE='daily-spending-web-v1.0.0';
+const CACHE='daily-spending-web-v1.0.1';
 const CORE=['./','index.html','styles.css','app.js','parser.js','ocr.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','vendor/tesseract.min.js','vendor/worker.min.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('daily-spending-web-')&&k!==CACHE&&k!=='daily-spending-web-models').map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
