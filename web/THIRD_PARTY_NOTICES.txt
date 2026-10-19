@@ -1,0 +1,7 @@
+Tesseract.js 6.0.1 and tesseract.js-core: Apache License 2.0.
+https://github.com/naptha/tesseract.js
+https://github.com/naptha/tesseract.js-core
+License copies: vendor/tesseract.js.LICENSE and vendor/tesseract.js-core.LICENSE.
+Chinese Simplified and English tessdata_fast trained models: Apache License 2.0.
+Source: https://github.com/tesseract-ocr/tessdata_fast (downloaded 2026-10-19).
+Runtime assets are self hosted; no CDN is used by this application.
