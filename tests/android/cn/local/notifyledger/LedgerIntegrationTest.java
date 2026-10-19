@@ -71,5 +71,29 @@ public class LedgerIntegrationTest {
         try(LedgerDb db=new LedgerDb(context);Cursor c=db.getReadableDatabase().rawQuery("SELECT COUNT(*),SUM(cents) FROM events WHERE state='auto'",null)){c.moveToFirst();assertEquals(3,c.getInt(0));assertEquals(5550,c.getLong(1));}
         flow.close();activity.finish();
     }
+    @Test public void correctionKeepsOriginalIdAndDoesNotDuplicate() {
+        long now=System.currentTimeMillis();
+        try(LedgerDb db=new LedgerDb(context)){
+            db.insertScreenshot("screenshot-old-1","银行卡",7190,now,"裤子");long id;
+            try(Cursor c=db.getReadableDatabase().rawQuery("SELECT _id FROM events",null)){c.moveToFirst();id=c.getLong(0);}
+            assertTrue(db.updateScreenshot("screenshot-old-1","支付宝",7190,now-86400000,"裤子"));
+            try(Cursor c=db.getReadableDatabase().rawQuery("SELECT _id,source,posted,note FROM events",null)){assertEquals(1,c.getCount());c.moveToFirst();assertEquals(id,c.getLong(0));assertEquals("支付宝",c.getString(1));assertEquals(now-86400000,c.getLong(2));assertEquals("裤子",c.getString(3));}
+            assertTrue(db.duplicateDescription("支付宝",7190,now-86400000,"screenshot-old-1").isEmpty());
+            assertFalse(db.updateScreenshot("screenshot-missing","支付宝",7190,now,""));
+        }
+    }
+    @Test public void batchCorrectionIsUncheckedAndRequiresUpdateConfirmation() throws Exception {
+        android.app.Activity activity=Robolectric.buildActivity(android.app.Activity.class).setup().get();long now=System.currentTimeMillis();
+        try(LedgerDb db=new LedgerDb(context)){db.insertScreenshot("screenshot-correction-0","银行卡",1800,now,"原备注");}
+        ScreenshotImport flow=new ScreenshotImport(activity,()->{});java.lang.reflect.Field itemsField=ScreenshotImport.class.getDeclaredField("items");itemsField.setAccessible(true);java.util.List items=(java.util.List)itemsField.get(flow);
+        Class<?> type=Class.forName("cn.local.notifyledger.ScreenshotImport$Item");java.lang.reflect.Constructor<?> ctor=type.getDeclaredConstructor();ctor.setAccessible(true);Object item=ctor.newInstance();
+        java.lang.reflect.Field value=type.getDeclaredField("value"),fp=type.getDeclaredField("fingerprint");value.setAccessible(true);fp.setAccessible(true);value.set(item,ScreenshotParser.parse("支付宝账单\n商户-18.00\n昨天13:20",now).get(0));fp.set(item,"screenshot-correction-0");items.add(item);
+        java.lang.reflect.Method show=ScreenshotImport.class.getDeclaredMethod("showReview");show.setAccessible(true);show.invoke(flow);org.robolectric.shadows.ShadowLooper.idleMainLooper();
+        android.app.AlertDialog dialog=org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();java.util.List<android.widget.CheckBox> checks=new java.util.ArrayList<>();findChecks(dialog.getWindow().getDecorView(),checks);assertEquals(2,checks.size());assertFalse(checks.get(0).isChecked());assertTrue(checks.get(0).isEnabled());
+        checks.get(0).setChecked(true);checks.get(1).setChecked(true);dialog.getButton(-1).performClick();org.robolectric.shadows.ShadowLooper.idleMainLooper();
+        try(LedgerDb db=new LedgerDb(context);Cursor c=db.getReadableDatabase().rawQuery("SELECT source FROM events",null)){c.moveToFirst();assertEquals("银行卡",c.getString(0));}
+        android.app.AlertDialog confirmation=org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();assertNotSame(dialog,confirmation);confirmation.getButton(-1).performClick();org.robolectric.shadows.ShadowLooper.idleMainLooper();
+        try(LedgerDb db=new LedgerDb(context);Cursor c=db.getReadableDatabase().rawQuery("SELECT source,note FROM events",null)){assertEquals(1,c.getCount());c.moveToFirst();assertEquals("支付宝",c.getString(0));assertEquals("原备注",c.getString(1));}flow.close();activity.finish();
+    }
     private void findChecks(android.view.View view,java.util.List<android.widget.CheckBox> out){if(view instanceof android.widget.CheckBox)out.add((android.widget.CheckBox)view);if(view instanceof android.view.ViewGroup){android.view.ViewGroup group=(android.view.ViewGroup)view;for(int i=0;i<group.getChildCount();i++)findChecks(group.getChildAt(i),out);}}
 }

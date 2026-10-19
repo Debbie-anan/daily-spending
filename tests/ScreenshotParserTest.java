@@ -18,6 +18,18 @@ public class ScreenshotParserTest {
         check(parse("今日净额 -34.36\n微信 -12.90\n银行卡 -21.46").isEmpty(),"own dashboard isn't a bill list");
         check(parse("支付成功 ¥12.345").isEmpty(),"don't truncate fractional cent");
         check(PaymentParser.centsForSource("com.eg.android.AlipayGphone","交易提醒\n你有一笔18.00元的支出，点此查看详情。") ==1800,"live 18 regression");
+        String alipay="9:45\n搜索交易记录 搜索\n全部 支出 转账 退款 订单 筛选\n10月\n支出 收入\n¥1,137.98 ¥0.00\n新增了1笔自动续费\n本月已省14.28元 收支分析\n示例超市 -29.07\n日用百货\n今天19:40\n示例蛋糕店 -18.00\n餐饮美食\n今天19:15\n余额宝-收益发放 0.14\n投资理财\n今天05:04\n示例服装订单 -71.90\n运动户外 等待确认收货\n昨天22:26\n示例护肤订单 -198.42 等待确认收货\n美容美发\n昨天11:56\n余额宝-收益发放 0.14";
+        a=parse(alipay);check(a.size()==4,"reported screenshot has four expenses");long[] sums={2907,1800,7190,19842};int[] days={19,19,18,18},hours={19,19,22,11},minutes={40,15,26,56};
+        for(int i=0;i<4;i++){ScreenshotParser.Candidate c=a.get(i);check(c.cents==sums[i]&&c.source.equals("支付宝")&&c.sourceKnown,"Alipay amount/channel "+i);cal.setTimeInMillis(c.time);check(cal.get(Calendar.DAY_OF_MONTH)==days[i]&&cal.get(Calendar.HOUR_OF_DAY)==hours[i]&&cal.get(Calendar.MINUTE)==minutes[i]&&c.hasDate&&c.hasTime,"multiline relative datetime "+i);}
+        a=parse(alipay.replace("-71.90","一71.90").replace("-198.42","−198.42"));check(a.size()==4,"OCR dash variants must retain yesterday expenses");
+        a=parse("微信账单\n全部账单 统计 常见问题\n便利店 -25.00\n商户消费\n昨天 13:20");check(a.size()==1&&a.get(0).source.equals("微信"),"WeChat channel");cal.setTimeInMillis(a.get(0).time);check(cal.get(Calendar.DAY_OF_MONTH)==18,"WeChat yesterday");
+        check(ScreenshotParser.source("账单 全部账单 统计 常见问题 商户消费").equals("微信"),"WeChat titleless bill features");
+        check(ScreenshotParser.source("账单 群收款 全部交易类型").equals("微信"),"WeChat group collection filter");
+        check(ScreenshotParser.source("微信账单 商户支付宝服务").equals("微信"),"merchant name must not override page channel");
+        check(ScreenshotParser.source("信用卡账单 招商银行").equals("银行卡"),"bank source fallback");
+        check(ScreenshotParser.source("支付成功 实付25元 美团").equals("银行卡"),"unknown source fallback");
+        a=parse("账单\n商户 -25.00\n消费\n2026-10-18 13:20");cal.setTimeInMillis(a.get(0).time);check(a.get(0).source.equals("银行卡")&&a.get(0).sourceKnown&&cal.get(Calendar.DAY_OF_MONTH)==18,"bank default and ISO date not a row boundary");
+        Calendar crossing=Calendar.getInstance();crossing.set(2026,0,1,20,0,0);a=ScreenshotParser.parse("支付宝账单\n商户-12.00\n等待确认收货\n昨天10:00",crossing.getTimeInMillis());cal.setTimeInMillis(a.get(0).time);check(cal.get(Calendar.YEAR)==2025&&cal.get(Calendar.MONTH)==11&&cal.get(Calendar.DAY_OF_MONTH)==31,"yesterday year boundary");
         System.out.println(checks+" screenshot parsing checks passed");
     }
 }

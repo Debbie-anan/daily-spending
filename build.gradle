@@ -3,7 +3,7 @@ android {
  namespace 'cn.local.notifyledger'
  compileSdk 35
  buildToolsVersion '35.0.0'
- defaultConfig { applicationId 'cn.local.notifyledger'; minSdk 26; targetSdk 35; versionCode 15; versionName '0.10.0'; ndk { abiFilters 'arm64-v8a' } }
+ defaultConfig { applicationId 'cn.local.notifyledger'; minSdk 26; targetSdk 35; versionCode 16; versionName '0.10.1'; ndk { abiFilters 'arm64-v8a' } }
  testOptions { unitTests.includeAndroidResources = true }
  sourceSets { test { java.srcDirs = ['tests/android'] }; main { manifest.srcFile 'AndroidManifest.xml'; java.srcDirs = ['src']; res.srcDirs = ['res']; assets.srcDirs = ['assets'] } }
  signingConfigs { local { storeFile file(System.getenv('LEDGER_SIGNING_KEY') ?: '../../work/signing/localtest.jks'); storePassword 'android'; keyAlias 'localtest'; keyPassword 'android' } }

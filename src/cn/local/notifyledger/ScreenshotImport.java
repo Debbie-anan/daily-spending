@@ -79,51 +79,52 @@ public final class ScreenshotImport {
         if(items.isEmpty()){new AlertDialog.Builder(activity).setTitle("未识别到明确消费")
             .setMessage("请选含账单列表、支出金额或支付成功信息的清晰截图。优惠券、余额和汇总金额不会自动记入。可裁剪无关内容后重试。"+(failed>0?"\n有 "+failed+" 张图片无法识别。":""))
             .setPositiveButton("知道了",null).show();return;}
-        LinearLayout list=column();TextView intro=new TextView(activity);intro.setText("识别到 "+items.size()+" 笔候选。勾选后批量入账；点“修改”核对金额、渠道、日期、时间和备注。疑似重复默认不选。\n未显示年份按今年；缺失日期/时间按当前值预填，请修改。"+(failed+empty>0?"\n另有 "+failed+" 张读取失败，"+empty+" 张未识别到消费。":""));list.addView(intro);
+        LinearLayout list=column();TextView intro=new TextView(activity);intro.setText("识别到 "+items.size()+" 笔候选。勾选后批量入账；点“修改”核对金额、渠道、日期、时间和备注。疑似重复默认不选。\n未显示年份按今年；今天/昨天按导入日期计算，旧截图请修改日期。缺失时间按当前值预填；未辨识出微信或支付宝的默认银行卡。已导入项默认不选，选中会更新原记录。"+(failed+empty>0?"\n另有 "+failed+" 张读取失败，"+empty+" 张未识别到消费。":""));list.addView(intro);
         Set<String> batch=new HashSet<>();
         for(Item item:items){
             String day=new java.text.SimpleDateFormat("yyyyMMdd",Locale.CHINA).format(new Date(item.value.time));item.batchDuplicate=!batch.add(day+"|"+item.value.source+"|"+item.value.cents);
             LinearLayout card=column();card.setBackgroundColor(Color.rgb(255,250,241));
             item.check=new CheckBox(activity);item.status=new TextView(activity);Button edit=new Button(activity);edit.setText("修改金额、日期或备注");
             card.addView(item.check);card.addView(item.status);card.addView(edit);list.addView(card);
-            update(item,true);edit.setEnabled(!item.existing);edit.setOnClickListener(v->edit(item));
+            update(item,true);edit.setOnClickListener(v->edit(item));
         }
         CheckBox verified=new CheckBox(activity);verified.setText("我已核对所选记录的金额、日期、时间和渠道");list.addView(verified);
         ScrollView scroll=new ScrollView(activity);scroll.addView(list);
         review=new AlertDialog.Builder(activity).setTitle("截图消费 · 批量确认").setView(scroll).setNegativeButton("取消",null).setPositiveButton("入账所选",null).create();
         review.setOnShowListener(d->review.getButton(-1).setOnClickListener(v->{
             if(!verified.isChecked()){Toast.makeText(activity,"请先核对并勾选确认",Toast.LENGTH_LONG).show();return;}
-            List<Item> selected=new ArrayList<>();int duplicates=0;Set<String> inBatch=new HashSet<>();
+            List<Item> selected=new ArrayList<>();int duplicates=0,updates=0;Set<String> inBatch=new HashSet<>();
             try(LedgerDb db=new LedgerDb(activity)){
-                for(Item item:items)if(item.check.isChecked()&&!item.existing){
+                for(Item item:items)if(item.check.isChecked()){if(item.existing)updates++;
                     if(item.value.time>System.currentTimeMillis()+300000){Toast.makeText(activity,"有记录时间晚于当前时间，请修改",Toast.LENGTH_LONG).show();return;}
                     selected.add(item);String day=new java.text.SimpleDateFormat("yyyyMMdd",Locale.CHINA).format(new Date(item.value.time));
-                    if(!db.duplicateDescription(item.value.source,item.value.cents,item.value.time).isEmpty()||!inBatch.add(day+"|"+item.value.source+"|"+item.value.cents))duplicates++;
+                    if(!db.duplicateDescription(item.value.source,item.value.cents,item.value.time,item.fingerprint).isEmpty()||!inBatch.add(day+"|"+item.value.source+"|"+item.value.cents))duplicates++;
                 }
             }
             if(selected.isEmpty()){Toast.makeText(activity,"请先选择要入账的记录",Toast.LENGTH_SHORT).show();return;}
             if(duplicates>0)new AlertDialog.Builder(activity).setTitle("所选含 "+duplicates+" 笔疑似重复")
-                .setMessage("账本或本批截图中有同一天、同渠道、同金额记录。可能是同一笔，也可能是两笔真实消费。确认它们是不同交易才继续。")
+                .setMessage("账本或本批截图中有同一天、同渠道、同金额记录。可能是同一笔，也可能是两笔真实消费。确认它们是不同交易才继续。已导入项会更新原记录，不新增副本。")
                 .setNegativeButton("返回核对",null).setPositiveButton("确认是不同交易，入账",(d2,w)->save(selected)).show();
+            else if(updates>0)new AlertDialog.Builder(activity).setTitle("更新 "+updates+" 笔已导入记录？").setMessage("使用本次核对的金额、日期、渠道和备注更新原记录，不新增副本。其余所选新记录正常入账；已排除的记录更新后会重新计入。").setNegativeButton("返回核对",null).setPositiveButton("确认更新并入账",(d2,w)->save(selected)).show();
             else save(selected);
         }));review.show();
     }
     private void update(Item item,boolean initial){
-        ScreenshotParser.Candidate c=item.value;String duplicate;
-        try(LedgerDb db=new LedgerDb(activity)){item.existing=db.hasFingerprint(item.fingerprint);duplicate=db.duplicateDescription(c.source,c.cents,c.time);}
+        ScreenshotParser.Candidate c=item.value;String duplicate,previous;
+        try(LedgerDb db=new LedgerDb(activity)){item.existing=db.hasFingerprint(item.fingerprint);duplicate=db.duplicateDescription(c.source,c.cents,c.time,item.fingerprint);previous=db.screenshotDescription(item.fingerprint);if(initial&&item.existing){String oldNote=db.screenshotNote(item.fingerprint);if(!oldNote.isEmpty())c.note=oldNote;}}
         item.check.setText(c.source+" · "+(c.cents<0?"退款 +":"支出 -")+money(c.cents)+" 元\n"+time(c.time));
-        item.check.setEnabled(!item.existing);
-        item.status.setText(item.existing?"这张截图的此条记录已经入账":(item.batchDuplicate?"本批有同日同渠道同金额的其他候选，默认不选。\n":"")+(!duplicate.isEmpty()?"疑似重复，默认不选：\n"+duplicate+"\n":"")+
+        item.check.setEnabled(true);
+        item.status.setText((item.existing?"此条已导入，默认不选。选中会更新原记录，不新增副本。\n原记录："+previous+"\n":"")+(item.batchDuplicate?"本批有同日同渠道同金额的其他候选，默认不选。\n":"")+(!duplicate.isEmpty()?"疑似重复，默认不选：\n"+duplicate+"\n":"")+
             (!c.sourceKnown?"⚠ 渠道未确定，请修改\n":"")+(!c.hasDate?"⚠ 未识别日期，请核对\n":"")+(!c.hasTime?"⚠ 未识别交易时间，请核对\n":"")+(c.note.isEmpty()?"":"备注："+c.note+"\n")+"识别依据："+c.evidence);
         if(initial)item.check.setChecked(!item.existing&&!item.batchDuplicate&&duplicate.isEmpty());
     }
     private void save(List<Item> selected){
-        int added=0;
+        int added=0,updated=0;
         try(LedgerDb db=new LedgerDb(activity)){
             android.database.sqlite.SQLiteDatabase sql=db.getWritableDatabase();sql.beginTransaction();
-            try{for(Item item:selected)if(db.insertScreenshot(item.fingerprint,item.value.source,item.value.cents,item.value.time,item.value.note))added++;sql.setTransactionSuccessful();}finally{sql.endTransaction();}
+            try{for(Item item:selected){if(item.existing){if(db.updateScreenshot(item.fingerprint,item.value.source,item.value.cents,item.value.time,item.value.note))updated++;else throw new IllegalStateException("Original screenshot row missing");}else if(db.insertScreenshot(item.fingerprint,item.value.source,item.value.cents,item.value.time,item.value.note))added++;}sql.setTransactionSuccessful();}finally{sql.endTransaction();}
         }catch(Exception ex){Toast.makeText(activity,"保存失败，未批量写入，请重试",Toast.LENGTH_LONG).show();return;}
-        review.dismiss();changed.run();Toast.makeText(activity,"已入账 "+added+" 笔；已存在的截图记录已跳过",Toast.LENGTH_LONG).show();
+        review.dismiss();changed.run();Toast.makeText(activity,"新增 "+added+" 笔，更新 "+updated+" 笔；未生成重复副本",Toast.LENGTH_LONG).show();
     }
     private void edit(Item item){
         ScreenshotParser.Candidate c=item.value;LinearLayout form=column();
