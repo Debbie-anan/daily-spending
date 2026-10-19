@@ -60,7 +60,7 @@ public class LedgerIntegrationTest {
         java.lang.reflect.Field itemsField=ScreenshotImport.class.getDeclaredField("items");itemsField.setAccessible(true);
         java.util.List items=(java.util.List)itemsField.get(flow);
         Class<?> type=Class.forName("cn.local.notifyledger.ScreenshotImport$Item");java.lang.reflect.Constructor<?> ctor=type.getDeclaredConstructor();ctor.setAccessible(true);
-        java.util.List<ScreenshotParser.Candidate> candidates=ScreenshotParser.parse("支付宝账单\n超市 -18.00\n咖啡 -12.50\n晚餐 -25.00",now);
+        java.util.List<ScreenshotParser.Candidate> candidates=ScreenshotParser.parse("支付宝账单\n"+new java.text.SimpleDateFormat("yyyy年MM月dd日").format(new java.util.Date(now))+"\n超市 -18.00\n咖啡 -12.50\n晚餐 -25.00",now);
         int index=0;for(ScreenshotParser.Candidate candidate:candidates){Object item=ctor.newInstance();java.lang.reflect.Field value=type.getDeclaredField("value"),fp=type.getDeclaredField("fingerprint");value.setAccessible(true);fp.setAccessible(true);value.set(item,candidate);fp.set(item,"screenshot-test-"+(index++));items.add(item);}
         java.lang.reflect.Method show=ScreenshotImport.class.getDeclaredMethod("showReview");show.setAccessible(true);show.invoke(flow);org.robolectric.shadows.ShadowLooper.idleMainLooper();
         android.app.AlertDialog dialog=org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();
@@ -94,6 +94,22 @@ public class LedgerIntegrationTest {
         try(LedgerDb db=new LedgerDb(context);Cursor c=db.getReadableDatabase().rawQuery("SELECT source FROM events",null)){c.moveToFirst();assertEquals("银行卡",c.getString(0));}
         android.app.AlertDialog confirmation=org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();assertNotSame(dialog,confirmation);confirmation.getButton(-1).performClick();org.robolectric.shadows.ShadowLooper.idleMainLooper();
         try(LedgerDb db=new LedgerDb(context);Cursor c=db.getReadableDatabase().rawQuery("SELECT source,note FROM events",null)){assertEquals(1,c.getCount());c.moveToFirst();assertEquals("支付宝",c.getString(0));assertEquals("原备注",c.getString(1));}flow.close();activity.finish();
+    }
+    @Test public void missingDateIsNotSilentlyRecordedAsToday() throws Exception {
+        android.app.Activity activity=Robolectric.buildActivity(android.app.Activity.class).setup().get();ScreenshotImport flow=new ScreenshotImport(activity,()->{});
+        java.lang.reflect.Field itemsField=ScreenshotImport.class.getDeclaredField("items");itemsField.setAccessible(true);java.util.List items=(java.util.List)itemsField.get(flow);
+        Class<?> type=Class.forName("cn.local.notifyledger.ScreenshotImport$Item");java.lang.reflect.Constructor<?> ctor=type.getDeclaredConstructor();ctor.setAccessible(true);Object item=ctor.newInstance();java.lang.reflect.Field value=type.getDeclaredField("value"),fp=type.getDeclaredField("fingerprint");value.setAccessible(true);fp.setAccessible(true);
+        ScreenshotParser.Candidate candidate=ScreenshotParser.parse("支付宝账单\n示例...-18.00\nPFÆ22:26",System.currentTimeMillis()).get(0);assertFalse(candidate.hasDate);value.set(item,candidate);fp.set(item,"screenshot-unknown-date-0");items.add(item);
+        java.lang.reflect.Method show=ScreenshotImport.class.getDeclaredMethod("showReview");show.setAccessible(true);show.invoke(flow);org.robolectric.shadows.ShadowLooper.idleMainLooper();android.app.AlertDialog dialog=org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();java.util.List<android.widget.CheckBox> checks=new java.util.ArrayList<>();findChecks(dialog.getWindow().getDecorView(),checks);assertFalse(checks.get(0).isChecked());
+        checks.get(0).setChecked(true);checks.get(1).setChecked(true);dialog.getButton(-1).performClick();org.robolectric.shadows.ShadowLooper.idleMainLooper();
+        try(LedgerDb db=new LedgerDb(context);Cursor c=db.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM events",null)){c.moveToFirst();assertEquals(0,c.getInt(0));}assertTrue(dialog.isShowing());flow.close();activity.finish();
+    }
+    @Test public void dateRetryPreservesAmountsAndAfternoon() {
+        android.graphics.Rect box=new android.graphics.Rect(150,600,300,630);
+        assertTrue(LocalScreenshotOcr.canRetryDate(new LocalScreenshotOcr.Row("PFÆ22:26",box),1920));
+        assertFalse(LocalScreenshotOcr.canRetryDate(new LocalScreenshotOcr.Row("商户21:19 -60.00",box),1920));
+        assertFalse(LocalScreenshotOcr.canRetryDate(new LocalScreenshotOcr.Row("今天19:15",box),1920));
+        assertEquals("昨天 下午7:15",LocalScreenshotOcr.restoredPrefix("昨天","S*下午7:15"));
     }
     private void findChecks(android.view.View view,java.util.List<android.widget.CheckBox> out){if(view instanceof android.widget.CheckBox)out.add((android.widget.CheckBox)view);if(view instanceof android.view.ViewGroup){android.view.ViewGroup group=(android.view.ViewGroup)view;for(int i=0;i<group.getChildCount();i++)findChecks(group.getChildAt(i),out);}}
 }

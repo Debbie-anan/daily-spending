@@ -55,19 +55,15 @@ public final class ScreenshotImport {
                 final Bitmap image=bitmap;final int rotation=degrees;final String imageHash=hash.toString();
                 activity.runOnUiThread(()->{
                     if(!alive()){image.recycle();return;}
-                    recognizer.process(InputImage.fromBitmap(image,rotation)).addOnSuccessListener(result->{
+                    Bitmap oriented=image;
+                    if(rotation!=0){Matrix matrix=new Matrix();matrix.postRotate(rotation);oriented=Bitmap.createBitmap(image,0,0,image.getWidth(),image.getHeight(),matrix,true);}
+                    final Bitmap scan=oriented;
+                    LocalScreenshotOcr.recognize(recognizer,scan).addOnSuccessListener(result->{
                         if(!alive())return;
-                        List<Text.Line> lines=new ArrayList<>();for(Text.TextBlock block:result.getTextBlocks())lines.addAll(block.getLines());
-                        lines.removeIf(line->line.getBoundingBox()==null);
-                        lines.sort((a,b)->{Rect x=a.getBoundingBox(),y=b.getBoundingBox();int dy=Integer.compare(x.top,y.top);return dy==0?Integer.compare(x.left,y.left):dy;});
-                        // Group lines on a shared row, then order left-to-right (stable, transitive sorting).
-                        List<Text.Line> ordered=new ArrayList<>();for(int at=0;at<lines.size();){int end=at+1;Rect anchor=lines.get(at).getBoundingBox();while(end<lines.size()){Rect rect=lines.get(end).getBoundingBox();if(Math.abs(rect.centerY()-anchor.centerY())>=Math.min(rect.height(),anchor.height())/2)break;end++;}List<Text.Line> row=new ArrayList<>(lines.subList(at,end));row.sort((a,b)->Integer.compare(a.getBoundingBox().left,b.getBoundingBox().left));ordered.addAll(row);at=end;}lines=ordered;
-                        StringBuilder text=new StringBuilder();Rect last=null;
-                        for(Text.Line line:lines){Rect rect=line.getBoundingBox();if(text.length()>0)text.append(last!=null&&rect!=null&&Math.abs(last.centerY()-rect.centerY())<Math.min(last.height(),rect.height())/2?' ':'\n');text.append(line.getText());last=rect;}
-                        List<ScreenshotParser.Candidate> found=ScreenshotParser.parse(text.toString(),System.currentTimeMillis());
+                        List<ScreenshotParser.Candidate> found=ScreenshotParser.parse(result.text,System.currentTimeMillis());
                         if(found.isEmpty())empty++;
                         for(ScreenshotParser.Candidate c:found){Item item=new Item();item.value=c;item.fingerprint="screenshot-"+imageHash+"-"+c.index;items.add(item);}
-                    }).addOnFailureListener(error->{if(alive())failed++;}).addOnCompleteListener(task->{image.recycle();if(alive())next(images,index+1);});
+                    }).addOnFailureListener(error->{if(alive())failed++;}).addOnCompleteListener(task->{if(scan!=image)scan.recycle();image.recycle();if(alive())next(images,index+1);});
                 });
             }catch(Exception|OutOfMemoryError ex){activity.runOnUiThread(()->{if(alive()){failed++;next(images,index+1);}});}
         },"local-screenshot-decode").start();
@@ -88,6 +84,7 @@ public final class ScreenshotImport {
             card.addView(item.check);card.addView(item.status);card.addView(edit);list.addView(card);
             update(item,true);edit.setOnClickListener(v->edit(item));
         }
+        int selectedNow=0;for(Item item:items)if(item.check.isChecked())selectedNow++;intro.append("\n共识别 "+items.size()+" 笔，默认勾选 "+selectedNow+" 笔；未勾选的条目也列在下方，不代表未识别。");
         CheckBox verified=new CheckBox(activity);verified.setText("我已核对所选记录的金额、日期、时间和渠道");list.addView(verified);
         ScrollView scroll=new ScrollView(activity);scroll.addView(list);
         review=new AlertDialog.Builder(activity).setTitle("截图消费 · 批量确认").setView(scroll).setNegativeButton("取消",null).setPositiveButton("入账所选",null).create();
@@ -95,7 +92,7 @@ public final class ScreenshotImport {
             if(!verified.isChecked()){Toast.makeText(activity,"请先核对并勾选确认",Toast.LENGTH_LONG).show();return;}
             List<Item> selected=new ArrayList<>();int duplicates=0,updates=0;Set<String> inBatch=new HashSet<>();
             try(LedgerDb db=new LedgerDb(activity)){
-                for(Item item:items)if(item.check.isChecked()){if(item.existing)updates++;
+                for(Item item:items)if(item.check.isChecked()){if(!item.value.hasDate){Toast.makeText(activity,"有记录未识别日期，请点修改确认日期后再勾选",Toast.LENGTH_LONG).show();return;}if(item.existing)updates++;
                     if(item.value.time>System.currentTimeMillis()+300000){Toast.makeText(activity,"有记录时间晚于当前时间，请修改",Toast.LENGTH_LONG).show();return;}
                     selected.add(item);String day=new java.text.SimpleDateFormat("yyyyMMdd",Locale.CHINA).format(new Date(item.value.time));
                     if(!db.duplicateDescription(item.value.source,item.value.cents,item.value.time,item.fingerprint).isEmpty()||!inBatch.add(day+"|"+item.value.source+"|"+item.value.cents))duplicates++;
@@ -115,8 +112,8 @@ public final class ScreenshotImport {
         item.check.setText(c.source+" · "+(c.cents<0?"退款 +":"支出 -")+money(c.cents)+" 元\n"+time(c.time));
         item.check.setEnabled(true);
         item.status.setText((item.existing?"此条已导入，默认不选。选中会更新原记录，不新增副本。\n原记录："+previous+"\n":"")+(item.batchDuplicate?"本批有同日同渠道同金额的其他候选，默认不选。\n":"")+(!duplicate.isEmpty()?"疑似重复，默认不选：\n"+duplicate+"\n":"")+
-            (!c.sourceKnown?"⚠ 渠道未确定，请修改\n":"")+(!c.hasDate?"⚠ 未识别日期，请核对\n":"")+(!c.hasTime?"⚠ 未识别交易时间，请核对\n":"")+(c.note.isEmpty()?"":"备注："+c.note+"\n")+"识别依据："+c.evidence);
-        if(initial)item.check.setChecked(!item.existing&&!item.batchDuplicate&&duplicate.isEmpty());
+            (!c.sourceKnown?"⚠ 渠道未确定，请修改\n":"")+(!c.hasDate?"⚠ 日期未识别，默认不选；请修改日期后勾选\n":"")+(!c.hasTime?"⚠ 未识别交易时间，请核对\n":"")+(c.note.isEmpty()?"":"备注："+c.note+"\n")+"识别依据："+c.evidence);
+        if(initial)item.check.setChecked(!item.existing&&!item.batchDuplicate&&duplicate.isEmpty()&&c.hasDate);
     }
     private void save(List<Item> selected){
         int added=0,updated=0;

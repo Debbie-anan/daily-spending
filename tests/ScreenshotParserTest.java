@@ -30,6 +30,15 @@ public class ScreenshotParserTest {
         check(ScreenshotParser.source("支付成功 实付25元 美团").equals("银行卡"),"unknown source fallback");
         a=parse("账单\n商户 -25.00\n消费\n2026-10-18 13:20");cal.setTimeInMillis(a.get(0).time);check(a.get(0).source.equals("银行卡")&&a.get(0).sourceKnown&&cal.get(Calendar.DAY_OF_MONTH)==18,"bank default and ISO date not a row boundary");
         Calendar crossing=Calendar.getInstance();crossing.set(2026,0,1,20,0,0);a=ScreenshotParser.parse("支付宝账单\n商户-12.00\n等待确认收货\n昨天10:00",crossing.getTimeInMillis());cal.setTimeInMillis(a.get(0).time);check(cal.get(Calendar.YEAR)==2025&&cal.get(Calendar.MONTH)==11&&cal.get(Calendar.DAY_OF_MONTH)==31,"yesterday year boundary");
+        a=parse("搜索交易记录\n支出 收入 收支分析\n示例服饰订单-71.90\n运动户外 等待确认收货\n昨天22:26\n示例护肤订单-198.42\n美容美发 等待确认收货\n昨天11:56\n余额宝-收益发放0.14\n投资理财\n昨天05:14\n示例定金-60.00\n美容美发 自动扣款成功\n10-17 21:19\n【0.01锁权礼】-0.01\n其他\n10-17 21:17\n退款-示例服饰15.90\n退款\n10-17 17:01");
+        check(a.size()==5,"latest screenshot four expenses plus unsigned refund");long expense=0,refund=0;for(ScreenshotParser.Candidate c:a){if(c.cents>0)expense+=c.cents;else refund-=c.cents;check(c.source.equals("支付宝")&&c.hasDate&&c.hasTime,"latest screenshot metadata");}check(expense==33033&&refund==1590,"latest screenshot totals");
+        check(parse("支付宝账单\n退款失败15.90\n待退款12.00\n退款处理中8.00").isEmpty(),"don't count incomplete refunds");
+        a=parse("Q搜索交易记录\r\n全部 支出 转账 退款 订单\r\n收支分祈\r\n示例服饰.. -71.90\r\n运动戶外 等待确认收货\r\n昨天22:26\r\n示例护肤.. -198.42\r\n美容美发 等侍确认收货\r\n昨天11:56\r\n余额颜宝-收益发放0.14\r\n昨天05:14\r\n示例定金.. -60.00\r\n美容美发 自动扣款成功\r\n10-17 21:19\r\n【0.01锁权礼】-0.01\r\n其他\r\n10-17 21:17\r\n退款-示例...15.90\r\n退款\r\n10-17 17:01");
+        check(a.size()==5,"actual OCR ellipsis must not swallow negative amounts");long[] expectedOCR={7190,19842,6000,1,-1590};int[] expectedHours={22,11,21,21,17},expectedMinutes={26,56,19,17,1};
+        for(int i=0;i<5;i++){ScreenshotParser.Candidate c=a.get(i);cal.setTimeInMillis(c.time);check(c.cents==expectedOCR[i]&&c.source.equals("支付宝"),"real OCR amount/source "+i);check(c.hasDate&&c.hasTime&&cal.get(Calendar.HOUR_OF_DAY)==expectedHours[i]&&cal.get(Calendar.MINUTE)==expectedMinutes[i],"real OCR date/time "+i);}
+        check(parse("支付宝账单\n退款提醒 下午4:58\n退款处理中 15.90").isEmpty(),"notification clocks are not refund amounts");
+        check(ScreenshotParser.source("Q搜素交易记录 收支分祈 余额額宝收益发放").equals("支付宝"),"OCR source alias");
+        a=parse("支付宝账单\n示例..-18.00\nPFÆ22:26");check(a.size()==1&&!a.get(0).hasDate&&a.get(0).hasTime,"uncertain relative dates must remain flagged");
         System.out.println(checks+" screenshot parsing checks passed");
     }
 }

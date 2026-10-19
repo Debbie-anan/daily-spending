@@ -3,12 +3,12 @@ android {
  namespace 'cn.local.notifyledger'
  compileSdk 35
  buildToolsVersion '35.0.0'
- defaultConfig { applicationId 'cn.local.notifyledger'; minSdk 26; targetSdk 35; versionCode 16; versionName '0.10.1'; ndk { abiFilters 'arm64-v8a' } }
+ defaultConfig { applicationId 'cn.local.notifyledger'; minSdk 26; targetSdk 35; versionCode 17; versionName '0.10.2'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'; ndk { abiFilters.addAll((project.findProperty('ledgerAbis') ?: 'arm64-v8a').split(',')) } }
  testOptions { unitTests.includeAndroidResources = true }
- sourceSets { test { java.srcDirs = ['tests/android'] }; main { manifest.srcFile 'AndroidManifest.xml'; java.srcDirs = ['src']; res.srcDirs = ['res']; assets.srcDirs = ['assets'] } }
+ sourceSets { androidTest { java.srcDirs = ['tests/device'] }; test { java.srcDirs = ['tests/android'] }; main { manifest.srcFile 'AndroidManifest.xml'; java.srcDirs = ['src']; res.srcDirs = ['res']; assets.srcDirs = ['assets'] } }
  signingConfigs { local { storeFile file(System.getenv('LEDGER_SIGNING_KEY') ?: '../../work/signing/localtest.jks'); storePassword 'android'; keyAlias 'localtest'; keyPassword 'android' } }
  buildTypes { release { signingConfig signingConfigs.local; minifyEnabled false } }
  compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
  packaging { resources { excludes += ['META-INF/DEPENDENCIES','META-INF/LICENSE*','META-INF/NOTICE*'] } }
 }
-dependencies { testImplementation 'junit:junit:4.13.2'; testImplementation 'org.robolectric:robolectric:4.14.1'; implementation 'com.google.mlkit:text-recognition-chinese:16.0.1' }
+dependencies { androidTestImplementation 'androidx.test:runner:1.6.2'; androidTestImplementation 'androidx.test.ext:junit:1.2.1'; testImplementation 'junit:junit:4.13.2'; testImplementation 'org.robolectric:robolectric:4.14.1'; implementation 'com.google.mlkit:text-recognition-chinese:16.0.1' }
